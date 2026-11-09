@@ -3,11 +3,13 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -20,9 +22,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK platform and build tools
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+        with:
+          accept-android-sdk-licenses: true
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -36,7 +38,9 @@ jobs:
             -storepass android \
             -alias androiddebugkey \
             -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Build debug APK
