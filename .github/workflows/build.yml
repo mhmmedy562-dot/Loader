@@ -1,12 +1,12 @@
 
-name: Build Ammar Android APK
+name: Build Amar Abu Daqa APK
 
 on:
   workflow_dispatch:
   push:
-    paths:
-      - '*.zip'
-      - '.github/workflows/build.yml'
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
@@ -20,26 +20,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Extract Project
-        shell: bash
-        run: |
-          set -e
-          mkdir -p source
-          ZIP_FILE=$(find . -maxdepth 1 -type f -name '*.zip' | head -n 1)
-
-          if [ -z "$ZIP_FILE" ]; then
-            echo "Project ZIP not found"
-            exit 1
-          fi
-
-          unzip -q "$ZIP_FILE" -d source
-
-          if [ ! -f source/settings.gradle.kts ]; then
-            echo "Project settings file not found"
-            exit 1
-          fi
-
-      - name: Setup Java
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -47,56 +28,17 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools'
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
 
-      - name: Install SDK Packages
-        run: |
-          sdkmanager --install \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
-
-      # Generate the debug signing key required by this project
-      - name: Generate Debug Keystore
-        run: |
-          keytool -genkeypair \
-            -v \
-            -keystore source/debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-      - name: Build APK
-        working-directory: source
-        run: |
-          gradle --no-daemon assembleDebug
-
-      - name: Verify APK
-        shell: bash
-        run: |
-          APK=$(find source/app/build/outputs/apk/debug \
-            -name '*.apk' | head -n 1)
-
-          if [ -z "$APK" ]; then
-            echo "APK not generated"
-            exit 1
-          fi
-
-          echo "APK READY: $APK"
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ammar-Abu-Daqqa-APK
-          path: source/app/build/outputs/apk/debug/*.apk
+          name: Amar-Abu-Daqa-APK
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
