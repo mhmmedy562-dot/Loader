@@ -17,83 +17,83 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Download repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. Extract uploaded ZIP
-      - name: Extract Android Project
+      - name: Extract Project
         shell: bash
         run: |
           set -e
           mkdir -p source
-
           ZIP_FILE=$(find . -maxdepth 1 -type f -name '*.zip' | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Project ZIP not found"
+            echo "Project ZIP not found"
             exit 1
           fi
 
           unzip -q "$ZIP_FILE" -d source
 
           if [ ! -f source/settings.gradle.kts ]; then
-            echo "ERROR: settings.gradle.kts not found"
-            find source -maxdepth 3 -type f | head -50
+            echo "Project settings file not found"
             exit 1
           fi
 
-          echo "Project extracted successfully"
-
-      # 3. Setup Java
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # 4. Setup Gradle
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      # 5. Setup Android SDK
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
 
-      # 6. Install required SDK packages
-      - name: Install Android SDK Packages
-        shell: bash
+      - name: Install SDK Packages
         run: |
-          set -e
           sdkmanager --install \
             "platforms;android-36" \
             "build-tools;36.0.0"
 
-      # 7. Build Debug APK
+      # Generate the debug signing key required by this project
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore source/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Build APK
         working-directory: source
         run: |
           gradle --no-daemon assembleDebug
 
-      # 8. Check APK
       - name: Verify APK
+        shell: bash
         run: |
           APK=$(find source/app/build/outputs/apk/debug \
             -name '*.apk' | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "APK was not generated"
+            echo "APK not generated"
             exit 1
           fi
 
-          echo "APK generated: $APK"
+          echo "APK READY: $APK"
 
-      # 9. Upload APK
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Ammar-Abu-Daqqa-APK
