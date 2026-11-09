@@ -1,5 +1,5 @@
 
-name: Build Amar Abu Daqa APK
+name: Build PS CLAN APK
 
 on:
   workflow_dispatch:
@@ -17,28 +17,82 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Download project
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Setup Java
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      # 3. Setup Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          sdkmanager "platforms;android-36" \
+                     "build-tools;36.0.0" \
+                     "platform-tools"
+
+      # 4. Find project directory
+      - name: Find Android Project
+        id: project
+        shell: bash
+        run: |
+          SETTINGS=$(find . -name settings.gradle.kts \
+            -not -path '*/.gradle/*' | head -n 1)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle.kts not found"
+            find . -maxdepth 3 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+
+          if [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+            echo "ERROR: app module not found"
+            exit 1
+          fi
+
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Project found: $PROJECT_DIR"
+
+      # 5. Setup Gradle
+      - name: Setup Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
-      - name: Grant Execute Permission
-        run: chmod +x gradlew
+      # 6. Generate Debug Keystore
+      - name: Generate Debug Keystore
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: |
+          keytool -genkeypair \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
 
+      # 7. Build APK
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: |
+          gradle --no-daemon clean :app:assembleDebug
 
+      # 8. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Amar-Abu-Daqa-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: PS-CLAN-APK
+          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
